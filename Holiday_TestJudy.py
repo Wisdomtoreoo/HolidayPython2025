@@ -12,17 +12,14 @@ import os
 gb_site_url = "https://wisdomhk.sharepoint.com/sites/WAML"
 gb_username = "Operation@wisdom-financial.com"
 gb_password = "Zek65431"
-# 跑原本的 HolidayPython，不能把 list name = 【HolidayPython 會錯誤】。要使用【重新命名後】的名稱 【Holiday】 ... 非常重要 
-gb_list_title = "Holiday"
-# gb_list_title = "Holiday_TestJudy"
+gb_list_title = "Holiday_TestJudy"
 
 # 全域變數 - share variable
 gb_location = ""
 gb_location_dict = {'germany': 'DE', 'hong-kong': 'HK', 'japan': 'JP', 'singapore': 'SG', 'taiwan': 'TW', 'us': 'US'}
 gb_month_dict = {'JAN': '1','FEB': '2','MAR': '3','APR': '4','MAY': '5','JUN': '6','JUL': '7','AUG': '8','SEP': '9','OCT': '10','NOV': '11','DEC': '12'}
 # gb_countries = ["germany", "hong-kong", "japan", "singapore", "taiwan", "us"] 
-# gb_countries = ["germany", "japan", "singapore", "taiwan", "us"] 
-gb_countries = ["hong-kong"] 
+gb_countries = ["germany"] 
 
 # logger
 now = datetime.datetime.now().strftime('%Y%m%d')
@@ -53,7 +50,7 @@ def getCountyURL(gb_year):
 def getWebData(url,country):
     logging.info(f"country : {country} || url : {url}")
 
-    DaysOfWeek_list=[]; Date_list = []; Type_List = []; NameOfHoliday_List=[]
+    Date_list = []; Type_List = []; NameOfHoliday_List=[]
 
     response = requests.get(url)
     if response.status_code == 200:
@@ -80,18 +77,16 @@ def getWebData(url,country):
         for row in rows:
             td_elements = row.find_all('td')
             if len(td_elements) > 0:
-
-                DaysOfWeek = BeautifulSoup(str(td_elements[0]), 'html.parser').get_text()                        
+                #NameOfHoliday = td_elements[1].string.replace('<td>', '').replace('</td>', '')
+                #Type = td_elements[2].string.replace('<td>', '').replace('</td>', '')                                
                 NameOfHoliday = BeautifulSoup(str(td_elements[1]), 'html.parser').get_text()
                 Type = BeautifulSoup(str(td_elements[2]), 'html.parser').get_text()
-
-                DaysOfWeek_list.append(DaysOfWeek)
                 NameOfHoliday_List.append(NameOfHoliday)            
                 Type_List.append(Type)            
                 
         #print(NameOfHoliday_List); print(Date_list); print(Type_List)
         #df
-        data_dict = { "Date": Date_list, "DaysOfWeek_list":DaysOfWeek_list ,"NameOfHoliday": NameOfHoliday_List, "Type": Type_List }    
+        data_dict = { "Date": Date_list, "NameOfHoliday": NameOfHoliday_List, "Type": Type_List }    
         df = pd.DataFrame(data_dict)
 
         #修改 - 日期格式
@@ -100,33 +95,31 @@ def getWebData(url,country):
         df_clean_up = df[
             df['Type'].str.lower().isin(['national holiday', 'federal holiday', 'national holiday, christian'])
         ]
-        #留下星期一到星期五的holiday
-        df_clean_up = df_clean_up[
-            df['DaysOfWeek_list'].str.lower().isin(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
-        ]
 
         logging.info(f"[getWebData] end")
-        # print(df_clean_up)
+        #print(df_clean_up)
         return df_clean_up
 
 #step 3 :
 def SharePointInsert(df,gb_location,gb_year):
     try:
+        site_url = "https://wisdomhk.sharepoint.com/sites/WAML"
+        username = "Operation@wisdom-financial.com"
+        password = "Zek65431"
+        list_title = "Holiday_TestJudy"
 
         # Create an authentication context
-        auth_ctx = AuthenticationContext(gb_site_url)
-        auth_ctx.acquire_token_for_user(gb_username, gb_password)  # Authenticate using username and password
+        auth_ctx = AuthenticationContext(site_url)
+        auth_ctx.acquire_token_for_user(username, password)  # Authenticate using username and password
 
         # Create a SharePoint client context
-        ctx = ClientContext(gb_site_url, auth_ctx)
+        ctx = ClientContext(site_url, auth_ctx)
 
         # Get the SharePoint list
-        list_obj = ctx.web.lists.get_by_title(gb_list_title)
+        list_obj = ctx.web.lists.get_by_title(list_title)
 
         df['Year'] = gb_year
         df['Location'] = gb_location
-
-        print(df)
 
         # Iterate through the DataFrame and insert each row into SharePoint
         for index, row in df.iterrows():
@@ -138,33 +131,15 @@ def SharePointInsert(df,gb_location,gb_year):
             }
 
             list_item = list_obj.add_item(payload)
-            #Update 一筆
-            #list_item.update()      
-        
-        #Update 全部
-        list_item.update()
-        ctx.execute_query()
-        print(f"Data updated successfully.")
+
+        list_item.update()  # Update after adding each item
+        ctx.execute_query()  # Execute the batch update
+        return "Data updated successfully."
             
     except Exception as ex:
-        print(f"Failed to update data. Error: {str(ex)}")        
+        return f"Failed to update data. Error: {str(ex)}"
 
 if __name__ == "__main__":
     gb_year = "2025"
     getCountyURL(gb_year)
 
-#---------------------------
-# 核對 Log
-# 1.台灣少 5/1 勞動節
-# 2.香港 OK
-# 3.新加坡 少 4 筆資料
-#---------------------------
-
-
-#用第二個 Website 去檢查輸入是否正確
-#台灣
-#https://publicholidays.tw/zh/2025-dates/#google_vignette
-#香港
-#https://www.gov.hk/tc/about/abouthk/holiday/2025.htm
-#新加坡
-#https://holiday.my-helper.com/zh/singapore/2025/
