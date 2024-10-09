@@ -12,18 +12,16 @@ import os
 gb_site_url = "https://wisdomhk.sharepoint.com/sites/WAML"
 gb_username = "Operation@wisdom-financial.com"
 gb_password = "Zek65431"
-#這裡的名稱，是Name: Holiday，不是看原本創建的 HolidayPython，
+# 跑原本的 HolidayPython，不能把 list name = 【HolidayPython 會錯誤】。要使用【重新命名後】的名稱 【Holiday】 ... 非常重要 
 gb_list_title = "Holiday"
-
-# 失敗，因為 SharePoint List Name 已經改名成 Holiday，所以要把名稱改成 : Holiday。用下面去跑程式碼會失敗
-# gb_list_title = "HolidayPython"
+# gb_list_title = "Holiday_TestJudy"
 
 # 全域變數 - share variable
 gb_location = ""
 gb_location_dict = {'germany': 'DE', 'hong-kong': 'HK', 'japan': 'JP', 'singapore': 'SG', 'taiwan': 'TW', 'us': 'US'}
 gb_month_dict = {'JAN': '1','FEB': '2','MAR': '3','APR': '4','MAY': '5','JUN': '6','JUL': '7','AUG': '8','SEP': '9','OCT': '10','NOV': '11','DEC': '12'}
 # gb_countries = ["germany", "hong-kong", "japan", "singapore", "taiwan", "us"] 
-gb_countries = ["japan", "singapore", "taiwan", "us"] 
+gb_countries = ["taiwan"] 
 
 # logger
 now = datetime.datetime.now().strftime('%Y%m%d')
@@ -54,7 +52,7 @@ def getCountyURL(gb_year):
 def getWebData(url,country):
     logging.info(f"country : {country} || url : {url}")
 
-    Date_list = []; Type_List = []; NameOfHoliday_List=[]
+    DaysOfWeek_list=[]; Date_list = []; Type_List = []; NameOfHoliday_List=[]
 
     response = requests.get(url)
     if response.status_code == 200:
@@ -81,16 +79,18 @@ def getWebData(url,country):
         for row in rows:
             td_elements = row.find_all('td')
             if len(td_elements) > 0:
-                #NameOfHoliday = td_elements[1].string.replace('<td>', '').replace('</td>', '')
-                #Type = td_elements[2].string.replace('<td>', '').replace('</td>', '')                                
+
+                DaysOfWeek = BeautifulSoup(str(td_elements[0]), 'html.parser').get_text()                        
                 NameOfHoliday = BeautifulSoup(str(td_elements[1]), 'html.parser').get_text()
                 Type = BeautifulSoup(str(td_elements[2]), 'html.parser').get_text()
+
+                DaysOfWeek_list.append(DaysOfWeek)
                 NameOfHoliday_List.append(NameOfHoliday)            
                 Type_List.append(Type)            
                 
         #print(NameOfHoliday_List); print(Date_list); print(Type_List)
         #df
-        data_dict = { "Date": Date_list, "NameOfHoliday": NameOfHoliday_List, "Type": Type_List }    
+        data_dict = { "Date": Date_list, "DaysOfWeek_list":DaysOfWeek_list ,"NameOfHoliday": NameOfHoliday_List, "Type": Type_List }    
         df = pd.DataFrame(data_dict)
 
         #修改 - 日期格式
@@ -99,9 +99,13 @@ def getWebData(url,country):
         df_clean_up = df[
             df['Type'].str.lower().isin(['national holiday', 'federal holiday', 'national holiday, christian'])
         ]
+        #留下星期一到星期五的holiday
+        df_clean_up = df_clean_up[
+            df['DaysOfWeek_list'].str.lower().isin(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
+        ]
 
         logging.info(f"[getWebData] end")
-        #print(df_clean_up)
+        # print(df_clean_up)
         return df_clean_up
 
 #step 3 :
@@ -148,3 +152,9 @@ if __name__ == "__main__":
     gb_year = "2025"
     getCountyURL(gb_year)
 
+
+#用第二個 Website 去檢查輸入是否正確
+#台灣
+#https://publicholidays.tw/zh/2025-dates/#google_vignette
+#香港
+#https://publicholidays.hk/zh/2025-dates/#google_vignette
